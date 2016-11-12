@@ -1,97 +1,90 @@
 let tabDebugger = null;
 
-function processData(data) {
+async function processData(data) {
     if (!data || !Array.isArray(data.ruleUsage)) {
         return null;
     }
 
-    return new Promise((resolve, reject) => {
-        const usedRules = data.ruleUsage.filter(rule => rule.used);
-        const stylesheets = new Set();
+    const usedRules = data.ruleUsage.filter(rule => rule.used);
+    const stylesheets = new Set();
 
-        usedRules.forEach(rule => stylesheets.add(rule.styleSheetId));
+    usedRules.forEach(rule => stylesheets.add(rule.styleSheetId));
 
-        // pull all stylesheets used
-        const stylesheetsTextReady = Promise.all(
-            Array.from(stylesheets)
-                .map(styleSheetId => {
-                    return tabDebugger.sendCommand('CSS.getStyleSheetText', {styleSheetId})
-                        .then(({text}) => {
-                            return {styleSheetId, text}
-                        });
-                })
-        );
+    // pull all stylesheets used
+    const stylesheetsText = await Promise.all(
+        Array.from(stylesheets)
+            .map(styleSheetId =>
+              tabDebugger.sendCommand('CSS.getStyleSheetText', {styleSheetId})
+                .then(({text}) => ({styleSheetId, text}))
+            )
+    );
 
-        stylesheetsTextReady.then(stylesheetsText => {
-            const cssMap = new Map();
-            stylesheetsText.forEach(({styleSheetId, text}) => cssMap.set(styleSheetId, text.split(/\n\r?/)));
+    const cssMap = new Map();
+    stylesheetsText.forEach(({styleSheetId, text}) => cssMap.set(styleSheetId, text.split(/\n\r?/)));
 
-            const outputCSS = usedRules.map(rule => {
-                const css = cssMap.get(rule.styleSheetId);
-                const ruleText = getRuleText(css, rule.range);
-                const ruleSelector = getRuleSelector(css, rule.range);
+    const outputCSS = usedRules.map(rule => {
+        const css = cssMap.get(rule.styleSheetId);
+        const ruleText = getRuleText(css, rule.range);
+        const ruleSelector = getRuleSelector(css, rule.range);
 
-                return `${ruleSelector} { ${ruleText} }`;
-            });
-
-            resolve(outputCSS);
-        })
+        return `${ruleSelector} { ${ruleText} }`;
     });
+
+    return outputCSS;
 }
 
-function startRecording(tabId) {
+function getCSSInjectionCode(css) {
+  return `
+    (function() {
+      let link = document.createElement('style');
+      link.textContent = \`${css}\`;
+      document.head.appendChild(link);
+    })();
+  `
+}
+
+async function startRecording(tabId) {
     chrome.browserAction.setBadgeText({text: 'rec'});
 
     tabDebugger = new TabDebugger(tabId);
 
-    tabDebugger.connect()
-        .then(() => injectCode({file: 'injected/hide-below-the-fold.js'}))
-        .then(() => tabDebugger.sendCommand('DOM.enable'))
-        .then(() => tabDebugger.sendCommand('CSS.enable'))
-        .then(() => tabDebugger.sendCommand('CSS.startRuleUsageTracking'))
-        .catch(error => {
-            console.error(error);
-            stopRecording();
-        });
+    try {
+        await tabDebugger.connect();
+        await injectCode({file: 'injected/hide-below-the-fold.js'});
+        await tabDebugger.sendCommand('DOM.enable');
+        await tabDebugger.sendCommand('CSS.enable');
+        await tabDebugger.sendCommand('CSS.startRuleUsageTracking');
+    } catch (error) {
+        console.error(error);
+        stopRecording();
+    }
 }
 
-function stopRecording() {
+async function stopRecording() {
     chrome.browserAction.setBadgeText({text: ''});
 
-    if(!tabDebugger || !tabDebugger.isConnected()) {
+    if (!tabDebugger || !tabDebugger.isConnected()) {
         tabDebugger = null;
         return;
     }
 
-    tabDebugger.sendCommand('CSS.stopRuleUsageTracking')
-        .then(processData)
-        .then(outputCSS => {
+    try {
+      const data = await tabDebugger.sendCommand('CSS.stopRuleUsageTracking');
+      const outputCSS = await processData(data);
 
-            chrome.tabs.create({
-                url: window.URL.createObjectURL(new Blob([outputCSS.join('\n')], {type: 'text/plain'})),
-                active: false
-            });
+      chrome.tabs.create({
+          url: window.URL.createObjectURL(new Blob([outputCSS.join('\n')], {type: 'text/plain'})),
+          active: false
+      });
 
-            chrome.tabs.executeScript({
-                file: 'injected/remove-all-styles.js'
-            }, () => {
+      await injectCode({file: 'injected/remove-all-styles.js'});
+      injectCode({code: getCSSInjectionCode(outputCSS.join(''))});
 
-                chrome.tabs.executeScript({
-                    code: `
-                (function() {
-                    let link = document.createElement('style');
-                    link.textContent = \`${outputCSS.join('')}\`;
-                    document.head.appendChild(link);
-                })();
-                `
-                });
-
-                tabDebugger.disconnect();
-                tabDebugger = null;
-            });
-
-        })
-        .catch(error => console.error(error));
+      tabDebugger.disconnect();
+      tabDebugger = null;
+    } catch (error) {
+      console.error(error);
+    }
 }
 
 function handleActionButtonClick(tab) {

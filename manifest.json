@@ -1,0 +1,26 @@
+{
+  "name": "CriticalCSS",
+  "description": "Extract critical CSS from the website",
+  "version": "0.0.1",
+  "manifest_version": 2,
+  "minimum_chrome_version": "56.0",
+  "icons": {
+    "24": "gfx/icon_24.png",
+    "128": "gfx/icon_96.png"
+  },
+  "permissions": [
+    "tabs",
+    "debugger",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["lib/tab-debugger.js", "lib/css-extract.js", "background.js"]
+  },
+  "browser_action": {
+    "default_icon": {
+      "38": "gfx/icon_24.png"
+    },
+    "default_title": "CriticalCSS"
+  },
+  "content_security_policy": "script-src 'self' https://apis.google.com https://platform.twitter.com https://www.facebook.com; object-src 'self'"
+}

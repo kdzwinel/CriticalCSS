@@ -25,9 +25,10 @@ async function processData(data) {
 
     notUsedRules.forEach(rule => {
         const css = cssMap.get(rule.styleSheetId);
-        const newCSS = removeRuleText(css, rule.range);
 
-        cssMap.set(rule.styleSheetId, newCSS);
+        if(css) {
+          cssMap.set(rule.styleSheetId, removeRuleText(css, rule.range));
+        }
     });
 
     let outputCSS = '';

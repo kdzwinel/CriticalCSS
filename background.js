@@ -6,6 +6,7 @@ async function processData(data) {
     }
 
     const usedRules = data.ruleUsage.filter(rule => rule.used);
+    const notUsedRules = data.ruleUsage.filter(rule => !rule.used);
     const stylesheets = new Set();
 
     usedRules.forEach(rule => stylesheets.add(rule.styleSheetId));
@@ -22,13 +23,20 @@ async function processData(data) {
     const cssMap = new Map();
     stylesheetsText.forEach(({styleSheetId, text}) => cssMap.set(styleSheetId, text.split(/\n\r?/)));
 
-    const outputCSS = usedRules.map(rule => {
+    notUsedRules.forEach(rule => {
         const css = cssMap.get(rule.styleSheetId);
-        const ruleText = getRuleText(css, rule.range);
-        const ruleSelector = getRuleSelector(css, rule.range);
+        const newCSS = removeRuleText(css, rule.range);
 
-        return `${ruleSelector} { ${ruleText} }`;
+        cssMap.set(rule.styleSheetId, newCSS);
     });
+
+    let outputCSS = '';
+    for(const css of cssMap.values()) {
+      outputCSS += css.join('\n');
+    }
+
+    // TODO clean up the output (minify?)
+    // TODO fix relative urls
 
     return outputCSS;
 }
@@ -73,12 +81,12 @@ async function stopRecording() {
       const outputCSS = await processData(data);
 
       chrome.tabs.create({
-          url: window.URL.createObjectURL(new Blob([outputCSS.join('\n')], {type: 'text/plain'})),
+          url: window.URL.createObjectURL(new Blob([outputCSS], {type: 'text/plain'})),
           active: false
       });
 
       await injectCode({file: 'injected/remove-all-styles.js'});
-      injectCode({code: getCSSInjectionCode(outputCSS.join(''))});
+      injectCode({code: getCSSInjectionCode(outputCSS)});
 
       tabDebugger.disconnect();
       tabDebugger = null;

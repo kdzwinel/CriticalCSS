@@ -1,3 +1,6 @@
+const cleanCSS = new CleanCSS({
+  keepSpecialComments: 0
+});
 let tabDebugger = null;
 
 async function processData(data) {
@@ -36,8 +39,8 @@ async function processData(data) {
       outputCSS += css.join('\n');
     }
 
-    // TODO clean up the output (minify?)
-    // TODO fix relative urls
+    // TODO fix relative urls - root param of cleanCSS
+    outputCSS = cleanCSS.minify(outputCSS).styles;
 
     return outputCSS;
 }

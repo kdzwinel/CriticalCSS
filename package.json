@@ -1,0 +1,22 @@
+{
+  "name": "CriticalCSS",
+  "version": "0.0.1",
+  "description": "Extract critical CSS from the website",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/kdzwinel/CriticalCSS.git"
+  },
+  "author": "Konrad Dzwinel",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/kdzwinel/CriticalCSS/issues"
+  },
+  "homepage": "https://github.com/kdzwinel/CriticalCSS",
+  "scripts": {
+    "build": "browserify lib/clean-css.js -o lib/clean-css-bundle.js"
+  },
+  "devDependencies": {
+    "browserify": "^13.1.1",
+    "clean-css": "^3.4.20"
+  }
+}

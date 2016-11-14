@@ -14,7 +14,7 @@
     "<all_urls>"
   ],
   "background": {
-    "scripts": ["lib/tab-debugger.js", "lib/injection-wrapper.js", "lib/css-extract.js", "background.js"]
+    "scripts": ["lib/clean-css-bundle.js", "lib/tab-debugger.js", "lib/injection-wrapper.js", "lib/css-extract.js", "background.js"]
   },
   "browser_action": {
     "default_icon": {

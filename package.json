@@ -13,7 +13,7 @@
   },
   "homepage": "https://github.com/kdzwinel/CriticalCSS",
   "scripts": {
-    "build": "browserify lib/clean-css.js -o lib/clean-css-bundle.js"
+    "build": "browserify ./js/vendor/clean-css/main.js -o ./js/vendor/clean-css/bundle.js"
   },
   "devDependencies": {
     "browserify": "^13.1.1",

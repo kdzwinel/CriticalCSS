@@ -40,6 +40,9 @@ async function processData(data) {
     }
 
     // TODO fix relative urls - root param of cleanCSS
+    // TODO special characters https://github.com/pocketjoso/penthouse#special-glyphs-not-showingshowing-incorrectly
+    // TODO reduce selectors - not everything is needed
+    // TODO maintain order of stylesheets
     outputCSS = cleanCSS.minify(outputCSS).styles;
 
     return outputCSS;
@@ -48,8 +51,9 @@ async function processData(data) {
 function getCSSInjectionCode(css) {
   return `
     (function() {
-      let link = document.createElement('style');
-      link.textContent = \`${css}\`;
+      let link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'data:text/css;base64,${btoa(css)}';
       document.head.appendChild(link);
     })();
   `
@@ -66,6 +70,9 @@ async function startRecording(tabId) {
         await tabDebugger.sendCommand('DOM.enable');
         await tabDebugger.sendCommand('CSS.enable');
         await tabDebugger.sendCommand('CSS.startRuleUsageTracking');
+
+        tabDebugger.sendCommand('CSS.startRuleUsageTracking')
+
     } catch (error) {
         console.error(error);
         stopRecording();

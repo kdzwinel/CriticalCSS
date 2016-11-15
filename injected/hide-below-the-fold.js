@@ -1,12 +1,19 @@
 (function() {
-    const maxWidth = window.innerWidth;
-    const maxHeight = window.innerHeight;
+  const maxWidth = window.innerWidth;
+  const maxHeight = window.innerHeight;
+  const leafs = Array.from(document.querySelectorAll('*')).filter(el => el.children.length === 0);
+  let leaf = null;
 
-    Array.from(document.body.querySelectorAll('*')).forEach(el => {
-        const bcr = el.getBoundingClientRect();
+  while(leaf = leafs.pop()) {
+    const bcr = leaf.getBoundingClientRect();
 
-        if (bcr.top > maxHeight || bcr.left > maxWidth) {
-            el.parentNode.removeChild(el);
-        }
-    });
+    if (bcr.top > maxHeight || bcr.left > maxWidth) {
+      const parentNode = leaf.parentNode;
+      parentNode.removeChild(leaf);
+
+      if(parentNode.children.length === 0) {
+        leafs.push(parentNode);
+      }
+    }
+  }
 })();

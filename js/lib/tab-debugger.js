@@ -75,4 +75,12 @@ class TabDebugger {
 
         return _sendCommand(this._tabId, command, data);
     }
+
+    addListener(callback) {
+      chrome.debugger.onEvent.addListener(callback);
+    }
+
+    removeListener(callback) {
+      chrome.debugger.onEvent.removeListener(callback);
+    }
 }

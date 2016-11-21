@@ -1,7 +1,15 @@
+let tabDebugger = null;
+let tabURL = null;
+let stylesheetsMeta = [];
 const cleanCSS = new CleanCSS({
   keepSpecialComments: 0
 });
-let tabDebugger = null;
+
+function collectStylesheets(source, method, params) {
+  if(method === 'CSS.styleSheetAdded' && params.header) {
+    stylesheetsMeta.push(params.header);
+  }
+}
 
 async function processData(data) {
     if (!data || !Array.isArray(data.ruleUsage)) {
@@ -35,15 +43,34 @@ async function processData(data) {
     });
 
     let outputCSS = '';
-    for(const css of cssMap.values()) {
-      outputCSS += css.join('\n');
+
+    // we use stylesheetsMeta to respect order of stylesheets on the page
+    for(let stylesheet of stylesheetsMeta) {
+      const stylesheetURL = (!stylesheet.isInline && stylesheet.sourceURL) ? new URL(stylesheet.sourceURL) : null;
+      let css = cssMap.get(stylesheet.styleSheetId);
+
+      if(css) {
+        css = css.join('');
+
+        if(stylesheetURL) {
+          css = rebaseURLs(css, url => {
+            if(stylesheetURL.protocol === tabURL.protocol && stylesheetURL.hostname === tabURL.hostname) {
+              return urlResolve('/', url);
+            } else {
+              return urlResolve(stylesheetURL.protocol + '//' + stylesheetURL.hostname, url)
+            }
+          });
+        }
+
+        outputCSS += cleanCSS.minify(css).styles + '\n\n';
+      }
     }
 
     // TODO fix relative urls - root param of cleanCSS
     // TODO special characters https://github.com/pocketjoso/penthouse#special-glyphs-not-showingshowing-incorrectly
     // TODO reduce selectors - not everything is needed
     // TODO maintain order of stylesheets
-    outputCSS = cleanCSS.minify(outputCSS).styles;
+    //outputCSS = cleanCSS.minify(outputCSS).styles;
 
     return outputCSS;
 }
@@ -51,12 +78,11 @@ async function processData(data) {
 function getCSSInjectionCode(css) {
   return `
     (function() {
-      let link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = 'data:text/css;base64,${btoa(css)}';
-      document.head.appendChild(link);
+      const style = document.createElement('style');
+      style.innerText = atob("${btoa(css)}");
+      document.head.appendChild(style);
     })();
-  `
+  `;
 }
 
 async function startRecording(tabId) {
@@ -65,13 +91,19 @@ async function startRecording(tabId) {
     tabDebugger = new TabDebugger(tabId);
 
     try {
+        stylesheetsMeta = [];
+        tabDebugger.addListener(collectStylesheets)
+
         await tabDebugger.connect();
-        await injectCode({file: 'injected/hide-below-the-fold.js'});
         await tabDebugger.sendCommand('DOM.enable');
         await tabDebugger.sendCommand('CSS.enable');
-        await tabDebugger.sendCommand('CSS.startRuleUsageTracking');
 
-        tabDebugger.sendCommand('CSS.startRuleUsageTracking')
+        tabDebugger.removeListener(collectStylesheets);
+        // wait a bit for all styleSheetAdded events to be fired
+        await timeout(300);
+
+        await injectCode({file: 'injected/hide-below-the-fold.js'});
+        await tabDebugger.sendCommand('CSS.startRuleUsageTracking');
 
     } catch (error) {
         console.error(error);
@@ -107,6 +139,8 @@ async function stopRecording() {
 }
 
 function handleActionButtonClick(tab) {
+  tabURL = new URL(tab.url);
+
     if (!tabDebugger) {
         startRecording(tab.id);
     } else {

@@ -15,10 +15,11 @@
   ],
   "background": {
     "scripts": [
-      "js/vendor/clean-css/bundle.js",
+      "js/vendor/bundle.js",
       "js/lib/tab-debugger.js",
       "js/lib/injection-wrapper.js",
       "js/lib/css-extract.js",
+      "js/lib/timeout.js",
       "background.js"
     ]
   },

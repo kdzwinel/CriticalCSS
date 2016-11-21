@@ -77,10 +77,10 @@ class TabDebugger {
     }
 
     addListener(callback) {
-      chrome.debugger.onEvent.addListener(callback);
+        chrome.debugger.onEvent.addListener(callback);
     }
 
     removeListener(callback) {
-      chrome.debugger.onEvent.removeListener(callback);
+        chrome.debugger.onEvent.removeListener(callback);
     }
 }

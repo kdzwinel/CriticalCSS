@@ -5,11 +5,11 @@ const url = require('url');
 
 window.CleanCSS = CleanCSS;
 window.rebaseURLs = (css, callback) => {
-  return postcss()
-    .use(postcssURL({
-      url: callback
-    }))
-    .process(css, {})
-    .css;
+    return postcss()
+        .use(postcssURL({
+            url: callback
+        }))
+        .process(css, {})
+        .css;
 };
 window.urlResolve = url.resolve.bind(url);

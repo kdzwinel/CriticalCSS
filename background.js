@@ -1,14 +1,14 @@
 let tabDebugger = null;
-let tabURL = null;
+let currentTab = null;
 let stylesheetsMeta = [];
 const cleanCSS = new CleanCSS({
-  keepSpecialComments: 0
+    keepSpecialComments: 0
 });
 
 function collectStylesheets(source, method, params) {
-  if(method === 'CSS.styleSheetAdded' && params.header) {
-    stylesheetsMeta.push(params.header);
-  }
+    if (method === 'CSS.styleSheetAdded' && params.header) {
+        stylesheetsMeta.push(params.header);
+    }
 }
 
 async function processData(data) {
@@ -26,8 +26,8 @@ async function processData(data) {
     const stylesheetsText = await Promise.all(
         Array.from(stylesheets)
             .map(styleSheetId =>
-              tabDebugger.sendCommand('CSS.getStyleSheetText', {styleSheetId})
-                .then(({text}) => ({styleSheetId, text}))
+                tabDebugger.sendCommand('CSS.getStyleSheetText', {styleSheetId})
+                    .then(({text}) => ({styleSheetId, text}))
             )
     );
 
@@ -37,46 +37,45 @@ async function processData(data) {
     notUsedRules.forEach(rule => {
         const css = cssMap.get(rule.styleSheetId);
 
-        if(css) {
-          cssMap.set(rule.styleSheetId, removeRuleText(css, rule.range));
+        if (css) {
+            cssMap.set(rule.styleSheetId, removeRuleText(css, rule.range));
         }
     });
 
+    const tabURL = new URL(currentTab.url);
     let outputCSS = '';
 
     // we use stylesheetsMeta to respect order of stylesheets on the page
-    for(let stylesheet of stylesheetsMeta) {
-      const stylesheetURL = (!stylesheet.isInline && stylesheet.sourceURL) ? new URL(stylesheet.sourceURL) : null;
-      let css = cssMap.get(stylesheet.styleSheetId);
+    for (let stylesheet of stylesheetsMeta) {
+        const stylesheetURL = (!stylesheet.isInline && stylesheet.sourceURL) ? new URL(stylesheet.sourceURL) : null;
+        let css = cssMap.get(stylesheet.styleSheetId);
 
-      if(css) {
-        css = css.join('');
+        if (css) {
+            css = css.join('');
 
-        if(stylesheetURL) {
-          css = rebaseURLs(css, url => {
-            if(stylesheetURL.protocol === tabURL.protocol && stylesheetURL.hostname === tabURL.hostname) {
-              return urlResolve('/', url);
-            } else {
-              return urlResolve(stylesheetURL.protocol + '//' + stylesheetURL.hostname, url)
+            if (stylesheetURL) {
+                css = rebaseURLs(css, url => {
+                    if (stylesheetURL.protocol === tabURL.protocol && stylesheetURL.hostname === tabURL.hostname) {
+                        return urlResolve('/', url);
+                    } else {
+                        return urlResolve(stylesheetURL.protocol + '//' + stylesheetURL.hostname, url)
+                    }
+                });
             }
-          });
-        }
 
-        outputCSS += cleanCSS.minify(css).styles + '\n\n';
-      }
+            outputCSS += css;
+        }
     }
 
-    // TODO fix relative urls - root param of cleanCSS
     // TODO special characters https://github.com/pocketjoso/penthouse#special-glyphs-not-showingshowing-incorrectly
     // TODO reduce selectors - not everything is needed
-    // TODO maintain order of stylesheets
-    //outputCSS = cleanCSS.minify(outputCSS).styles;
+    outputCSS = cleanCSS.minify(outputCSS).styles;
 
     return outputCSS;
 }
 
 function getCSSInjectionCode(css) {
-  return `
+    return `
     (function() {
       const style = document.createElement('style');
       style.innerText = atob("${btoa(css)}");
@@ -102,7 +101,8 @@ async function startRecording(tabId) {
         // wait a bit for all styleSheetAdded events to be fired
         await timeout(300);
 
-        await injectCode({file: 'injected/hide-below-the-fold.js'});
+        await injectCode(currentTab.id, {file: 'injected/hide-below-the-fold.js'});
+        //TODO fix the 'RuleUsageTracking is not enabled' bug
         await tabDebugger.sendCommand('CSS.startRuleUsageTracking');
 
     } catch (error) {
@@ -120,26 +120,26 @@ async function stopRecording() {
     }
 
     try {
-      const data = await tabDebugger.sendCommand('CSS.stopRuleUsageTracking');
-      const outputCSS = await processData(data);
+        const data = await tabDebugger.sendCommand('CSS.stopRuleUsageTracking');
+        const outputCSS = await processData(data);
 
-      chrome.tabs.create({
-          url: window.URL.createObjectURL(new Blob([outputCSS], {type: 'text/plain'})),
-          active: false
-      });
+        chrome.tabs.create({
+            url: window.URL.createObjectURL(new Blob([outputCSS], {type: 'text/plain'})),
+            active: false
+        });
 
-      await injectCode({file: 'injected/remove-all-styles.js'});
-      injectCode({code: getCSSInjectionCode(outputCSS)});
+        await injectCode(currentTab.id, {file: 'injected/remove-all-styles.js'});
+        injectCode(currentTab.id, {code: getCSSInjectionCode(outputCSS)});
 
-      tabDebugger.disconnect();
-      tabDebugger = null;
+        tabDebugger.disconnect();
+        tabDebugger = null;
     } catch (error) {
-      console.error(error);
+        console.error(error);
     }
 }
 
 function handleActionButtonClick(tab) {
-  tabURL = new URL(tab.url);
+    currentTab = tab;
 
     if (!tabDebugger) {
         startRecording(tab.id);

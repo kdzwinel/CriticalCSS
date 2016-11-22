@@ -11,6 +11,7 @@ function collectStylesheets(source, method, params) {
     }
 }
 
+//TODO clean up this method
 async function processData(data) {
     if (!data || !Array.isArray(data.ruleUsage)) {
         return null;
@@ -84,14 +85,14 @@ function getCSSInjectionCode(css) {
   `;
 }
 
-async function startRecording(tabId) {
-    chrome.browserAction.setBadgeText({text: 'rec'});
-
-    tabDebugger = new TabDebugger(tabId);
+async function startRecording() {
+    tabDebugger = new TabDebugger(currentTab.id);
 
     try {
+        chrome.browserAction.disable();
+
         stylesheetsMeta = [];
-        tabDebugger.addListener(collectStylesheets)
+        tabDebugger.addListener(collectStylesheets);
 
         await tabDebugger.connect();
         await tabDebugger.sendCommand('DOM.enable');
@@ -102,20 +103,26 @@ async function startRecording(tabId) {
         await timeout(300);
 
         await injectCode(currentTab.id, {file: 'injected/hide-below-the-fold.js'});
-        //TODO fix the 'RuleUsageTracking is not enabled' bug
         await tabDebugger.sendCommand('CSS.startRuleUsageTracking');
 
+        chrome.browserAction.setBadgeText({text: 'rec', tabId: currentTab.id});
+        chrome.browserAction.enable();
+
     } catch (error) {
+        chrome.browserAction.enable();
         console.error(error);
         stopRecording();
     }
 }
 
 async function stopRecording() {
-    chrome.browserAction.setBadgeText({text: ''});
+    if (currentTab) {
+        chrome.browserAction.setBadgeText({text: '', tabId: currentTab.id});
+    }
 
     if (!tabDebugger || !tabDebugger.isConnected()) {
         tabDebugger = null;
+        currentTab = null;
         return;
     }
 
@@ -133,6 +140,7 @@ async function stopRecording() {
 
         tabDebugger.disconnect();
         tabDebugger = null;
+        currentTab = null;
     } catch (error) {
         console.error(error);
     }
@@ -142,7 +150,7 @@ function handleActionButtonClick(tab) {
     currentTab = tab;
 
     if (!tabDebugger) {
-        startRecording(tab.id);
+        startRecording();
     } else {
         stopRecording();
     }

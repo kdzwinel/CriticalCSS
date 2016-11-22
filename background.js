@@ -75,6 +75,7 @@ async function processData(data) {
     return outputCSS;
 }
 
+// TODO - http://www.baidu.com/ - Failed to execute 'btoa' on 'Window': The string to be encoded contains characters outside of the Latin1 range
 function getCSSInjectionCode(css) {
     return `
     (function() {
